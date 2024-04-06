@@ -1,0 +1,149 @@
+﻿@model KolomietsExpertTestMVC.Entities.Film
+
+@{
+    ViewData["Title"] = "Details";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var parentCategories = ViewBag.ParentCategories as ICollection<KolomietsExpertTestMVC.Entities.Category>;
+}
+
+<h1>Details</h1>
+
+<div class="row">
+    <div class="col-md-4">
+        <h4>Film</h4>
+        <hr />
+        <dl class="row">
+            <dt class = "col-sm-2">
+                @Html.DisplayNameFor(model => model.Name)
+            </dt>
+            <dd class = "col-sm-10">
+                @Html.DisplayFor(model => model.Name)
+            </dd>
+            <dt class = "col-sm-2">
+                @Html.DisplayNameFor(model => model.Director)
+            </dt>
+            <dd class = "col-sm-10">
+                @Html.DisplayFor(model => model.Director)
+            </dd>
+            <dt class = "col-sm-2">
+                <p style="font-weight: 700;">Release Date</p>
+            </dt>
+            <dd class = "col-sm-10">
+                @Model.ReleaseDate.Year
+            </dd>
+            <dt class="col-sm-2">
+                <label style="font-weight: 700;">Category</label>
+            </dt>
+            <dd class="col-sm-10">
+                <select onchange="handleCategoryChange()">
+                    @foreach (var category in parentCategories)
+                    {
+                        var filmId = await (Task<int>)ViewBag.GetFilmIdByCategoryId(category.Id);
+                        var isCategorySelected = filmId == Model.Id;
+                        <option value="@category.Id" selected="@(isCategorySelected)">@category.Name</option>
+                    }
+                </select>
+            </dd>
+            <dt class="col-sm-2">
+                <label style="font-weight: 700;">Subcategories</label>
+            </dt>
+            <dd>
+                <div class="col" id="related-categories">
+                </div>
+                <form onsubmit="newCategorySubmitHandler(event)">
+                    <input id="new-subcategory"/>
+                    <input type="submit" value="add"/>
+                </form>
+            </dd>
+        </dl>
+    </div>
+</div>
+<div>
+    <a asp-action="Edit" asp-route-id="@Model?.Id">Edit</a> |
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    <script type="text/javascript">
+        const baseUrl = "https://localhost:7173/api/RelatedCategories/";
+        const elem = document.getElementById("related-categories");
+        var selectedCategoryId = -1;
+
+        class FilmCategory {
+            constructor(id, name, parentCategoryId) {
+                this.id = id;
+                this.name = name;
+                this.parentCategoryId = parentCategoryId;
+            }
+        }
+
+        async function handleCategoryChange() {
+            selectedCategoryId = this.value;
+            const getRelatedUrl = baseUrl + `get/${selectedCategoryId}/${@Model.Id}`;
+            console.log(getRelatedUrl);
+
+            try {
+                const response = await fetch(getRelatedUrl, {
+                    method: "GET"
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log(data);
+
+                updateRelatedCategories(data);
+
+            } catch (error) {
+                console.error('Error fetching related categories:', error);
+            }
+        }
+
+        function updateRelatedCategories(data) {
+            elem.innerHTML = "";
+            
+            for (const hasGenre in data) {
+                const category = data[hasGenre]; 
+
+                const checkboxElement = document.createElement("input");
+                checkboxElement.type = "checkbox";
+                checkboxElement.id = `related-category-${category.id}`;
+                checkboxElement.value = category.id;
+                checkboxElement.name = "relatedCategories";
+                checkboxElement.checked = hasGenre === "True";
+
+                const labelElement = document.createElement("label");
+                labelElement.textContent = category.name;
+                labelElement.htmlFor = checkboxElement.id;
+
+                elem.appendChild(checkboxElement);
+                elem.appendChild(labelElement);
+                elem.appendChild(document.createElement("br"));
+            }
+        }
+
+        async function newCategorySubmitHandler(event) {
+            event.preventDefault();
+            const subcategoryInput = document.getElementById("new-subcategory");
+
+            console.log(subcategoryInput.value);
+
+            const filmCategory = new FilmCategory(null, subcategoryInput, selectedCategoryId);
+
+            const body = JSON.stringify(filmCategory);
+
+            const response = await fetch(baseUrl + 'create', {
+                method: "POST",
+                body: body,
+                headers: {
+                    "Content-Type": "application/json" 
+                }
+            });
+        }
+
+        var selectElement = document.querySelector("select");
+        selectElement.onchange = handleCategoryChange.bind(selectElement);
+    </script>
+}
